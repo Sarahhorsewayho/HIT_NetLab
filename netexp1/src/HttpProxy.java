@@ -1,14 +1,49 @@
 import java.io.*;
 import java.net.*;
+import java.util.*;
 import java.lang.String;
 import java.lang.InterruptedException;
 
 public class HttpProxy extends Thread{
-    
+
+    public ArrayList<String> bannedWebsite; //禁止访问网站列表
+    public ArrayList<String> bannedUsers;   //过滤用户列表
+
     private Socket connectionSocket;    //与客户端连接的Socket
 
     public HttpProxy(Socket connectionSocket) {
+        bannedWebsite = new ArrayList<String>();
+        bannedUsers = new ArrayList<String>();
+        bannedWebsite.add("jwts.hit.edu.cn");   //添加禁止访问的网站
+        bannedUsers.add("127.0.0.1");   //添加禁止访问的用户
         this.connectionSocket = connectionSocket;
+    }
+
+    /**
+     * 判断某网站是否存在于禁止访问列表中
+     * @param host 主机名
+     * @return 布尔值
+     */
+    public boolean isBannedWebsite (String host) {
+        for (String w : bannedWebsite) {
+            if (host.equals(w))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * 判断该用户是否禁止访问
+     * @param ip 主机ip
+     * @return 布尔值
+     */
+    public boolean isBannedUsers (String ip) {
+        for (String u :bannedUsers) {
+            if(ip.equals(u)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -22,8 +57,10 @@ public class HttpProxy extends Thread{
             client2proxy = connectionSocket.getInputStream();
             proxy2client = connectionSocket.getOutputStream();
 
-            //解析http头部首行
+            String ip = InetAddress.getLocalHost().getHostAddress();    //获取本机ip
+            System.out.println("本机IP: " + ip);
 
+            //解析http头部首行
             while (true) {
                 int c = client2proxy.read();
                 if (c == -1)
@@ -35,16 +72,29 @@ public class HttpProxy extends Thread{
             System.out.println(getName() + ": 请求行：" + firstLine);
             String urlStr = extractUrl(firstLine);
             URL url = new URL(urlStr);  //封装url
+
+            //实现附加功能：网站过滤、用户过滤
+            if(isBannedWebsite(url.getHost())) {    // 实现网站过滤
+                connectionSocket.close();
+                System.out.println(url.getHost() + " --- 此网站禁止访问！");
+            } else if (isBannedUsers(ip)) {
+                connectionSocket.close();
+                System.out.println(ip + " --- 此用户被禁止访问！");
+            }
+
+            //如不存在禁用状况，正常与目标服务器建立连接
             try {
                 proxySocket = new Socket(url.getHost(), 80);    //利用封装对象的方法获取主机名
             } catch (Exception e) {
             }
-            if(proxySocket != null) {
-                proxy2server = proxySocket.getOutputStream();
-                server2proxy = proxySocket.getInputStream();
-                proxy2server.write(firstLine.getBytes());
-                pipe(client2proxy, server2proxy, proxy2server, proxy2client);   //建立通信管道
+            if (proxySocket != null) {
+                    proxy2server = proxySocket.getOutputStream();
+                    server2proxy = proxySocket.getInputStream();
+                    proxy2server.write(firstLine.getBytes());
+                    pipe(client2proxy, server2proxy, proxy2server, proxy2client);   //建立通信管道
             }
+
+
 
         } catch (IOException e) {
             e.printStackTrace();
