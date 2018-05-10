@@ -16,6 +16,7 @@ public class Main {
                 try {
                     socket = serverSocket.accept(); //生成连接套接字，建立连接
                     new HttpProxy(socket).start();  //启动主线程
+                    //new FishProxy(socket).start();  //启动钓鱼线程
                 } catch (Exception e) {
                     e.printStackTrace();
                     System.out.println("主线程启动失败");
